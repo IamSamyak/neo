@@ -1,62 +1,120 @@
-import React, { useState, useEffect } from 'react';
-import Graph from 'react-graph-vis';
-import axios from 'axios'; // Assuming you're using Axios for API calls
+// app.js starts here
+import React from 'react';
+import Graph from './Components/Graph';
 
-const GraphComponent = () => {
-  const [graph, setGraph] = useState({ nodes: [], edges: [] });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const App = () => {
+  const nodes = [
+    { id: 'node1' },
+    { id: 'node2' },
+    { id: 'node3' }
+  ];
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await axios.get('http://localhost:3000/api/nodes'); // Replace with your actual server address and endpoint
-        const data = response.data;
-
-        // Process and format the fetched data for the graph component
-        const nodes = data.map((item) => ({
-          id: item.id,
-          label: item.label,
-          // ... other properties for nodes as needed
-        }));
-        const edges = [];
-        // ... Define logic to create edges based on data
-        // (Adapt this based on your specific relationships)
-
-        setGraph({ nodes, edges });
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setError(error);
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  const options = {
-    // ... same options definition from previous example
-  };
+  const links = [
+    { source: 'node1', target: 'node2' },
+    { source: 'node2', target: 'node3' }
+  ];
 
   return (
-    <div className="container">
-      {/* Left side content (replace with your desired content) */}
-      <div className="left-content">
-        {/* Your content here */}
-      </div>
-      <div className="graph-container">
-        <h1>Complex Graph</h1>
-        {loading ? (
-          <p>Loading...</p>
-        ) : error ? (
-          <p>Error fetching data: {error.message}</p>
-        ) : (
-          <Graph graph={graph} options={options} style={{ width: '500px', height: '500px' }} />
-        )}
-      </div>
+    <div className="App">
+      <h1>Graph Example</h1>
+      <Graph nodes={nodes} links={links} />
     </div>
   );
 };
 
-export default GraphComponent;
+export default App;
+//app.js ends here
+
+
+
+
+//Graph.js starts here
+
+import React, { useRef, useEffect } from 'react';
+import * as d3 from 'd3';
+
+const Graph = ({ nodes, links }) => {
+  const svgRef = useRef();
+
+  useEffect(() => {
+    const svg = d3.select(svgRef.current);
+    const width = +svg.attr('width');
+    const height = +svg.attr('height');
+
+    // Clear existing graph
+    svg.selectAll('*').remove();
+
+    const simulation = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id(d => d.id))
+      .force('charge', d3.forceManyBody())
+      .force('center', d3.forceCenter(width / 2, height / 2));
+
+    const link = svg.append('g')
+      .selectAll('line')
+      .data(links)
+      .enter().append('line')
+      .attr('stroke', '#999')
+      .attr('stroke-opacity', 0.6)
+      .attr('stroke-width', d => Math.sqrt(d.value));
+
+    const node = svg.append('g')
+      .selectAll('circle')
+      .data(nodes)
+      .enter().append('circle')
+      .attr('r', 5)
+      .attr('fill', 'steelblue')
+      .call(drag(simulation));
+
+    node.append('title')
+      .text(d => d.id);
+
+    simulation.on('tick', () => {
+      link
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x)
+        .attr('y2', d => d.target.y);
+
+      node
+        .attr('cx', d => d.x)
+        .attr('cy', d => d.y);
+    });
+
+    function drag(simulation) {
+
+      function dragstarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+      }
+
+      function dragged(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+      }
+
+      function dragended(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+      }
+
+      return d3.drag()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended);
+    }
+
+    return () => {
+      simulation.stop();
+    };
+  }, [nodes, links]);
+
+  return (
+    <svg ref={svgRef} width={700} height={700}>
+      {/* SVG contents will be rendered here */}
+    </svg>
+  );
+};
+
+export default Graph;
